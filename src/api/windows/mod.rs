@@ -3,7 +3,7 @@
 mod funcs;
 mod structs;
 
-use std::{cell::RefCell, mem, ptr, sync::{
+use std::{cell::RefCell, mem, sync::{
     mpsc::{channel, Sender},
     Arc, Mutex,
 }, thread};
@@ -21,7 +21,7 @@ use windows_sys::Win32::{
 };
 use windows_sys::Win32::UI::Shell::NIF_INFO;
 
-use crate::{IconSource, TIError};
+use crate::{IconSource, TIError, TrayNotificationFlags};
 
 use funcs::*;
 use structs::*;

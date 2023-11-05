@@ -1,5 +1,8 @@
 mod api;
 mod error;
+
+use bitflags::bitflags;
+use windows_sys::Win32::UI::Shell::*;
 pub use error::TIError;
 
 pub struct TrayItem(api::TrayItemImpl);
@@ -47,5 +50,22 @@ impl TrayItem {
 
     pub fn inner_mut(&mut self) -> &mut api::TrayItemImpl {
         &mut self.0
+    }
+
+    pub fn show_toast(&mut self, text: &str, title: Option<&str>, flags: Option<TrayNotificationFlags>) -> Result<(), TIError> {
+        self.0.show_toast(text, title, flags)
+    }
+}
+
+bitflags! {
+    pub struct TrayNotificationFlags: u32 {
+        const NO_ICON = NIIF_NONE;
+        const INFO_ICON = NIIF_INFO;
+        const WARNING_ICON = NIIF_WARNING;
+        const ERROR_ICON = NIIF_ERROR;
+        const USER_ICON = NIIF_USER;
+        const SILENT = NIIF_NOSOUND;
+        const LARGE_ICON = NIIF_LARGE_ICON;
+        const QUIET = NIIF_RESPECT_QUIET_TIME;
     }
 }
