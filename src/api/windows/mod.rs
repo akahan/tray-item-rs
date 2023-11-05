@@ -3,25 +3,30 @@
 mod funcs;
 mod structs;
 
-use std::{cell::RefCell, mem, ptr, sync::{
-    mpsc::{channel, Sender},
-    Arc, Mutex,
-}, thread};
+use std::{
+    cell::RefCell,
+    mem,
+    sync::{
+        mpsc::{channel, Sender},
+        Arc, Mutex,
+    },
+    thread,
+};
 
+use windows_sys::Win32::UI::Shell::NIF_INFO;
 use windows_sys::Win32::{
     Foundation::{LPARAM, WPARAM},
     UI::{
         Shell::{Shell_NotifyIconW, NIF_ICON, NIF_TIP, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW},
         WindowsAndMessaging::{
-            InsertMenuItemW, SetMenuItemInfoW, LoadImageW, PostMessageW, HICON, IMAGE_ICON, LR_DEFAULTCOLOR,
-            MENUITEMINFOW, MFS_DISABLED, MFS_UNHILITE, MFT_SEPARATOR, MFT_STRING, MIIM_FTYPE,
-            MIIM_ID, MIIM_STATE, MIIM_STRING, WM_DESTROY,
+            InsertMenuItemW, LoadImageW, PostMessageW, SetMenuItemInfoW, HICON, IMAGE_ICON,
+            LR_DEFAULTCOLOR, MENUITEMINFOW, MFS_DISABLED, MFS_UNHILITE, MFT_SEPARATOR, MFT_STRING,
+            MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING, WM_DESTROY,
         },
     },
 };
-use windows_sys::Win32::UI::Shell::NIF_INFO;
 
-use crate::{IconSource, TIError};
+use crate::{IconSource, TIError, TrayNotificationFlags};
 
 use funcs::*;
 use structs::*;
@@ -157,7 +162,6 @@ impl TrayItemWindows {
             }
         }
         Ok(())
-
     }
 
     pub fn add_menu_item<F>(&mut self, label: &str, cb: F) -> Result<(), TIError>
@@ -260,7 +264,13 @@ impl TrayItemWindows {
         Ok(())
     }
 
-    pub fn show_toast(&self, text: &str, title: Option<&str>, flags: Option<TrayNotificationFlags>) -> Result<(), TIError> {
+    pub fn show_toast(
+        &self,
+        text: &str,
+        icon: HICON,
+        title: Option<&str>,
+        flags: Option<TrayNotificationFlags>,
+    ) -> Result<(), TIError> {
         // if self.handle.blank() { panic!("{}", NOT_BOUND); }
         // self.handle.tray().expect(BAD_HANDLE);
 
@@ -270,20 +280,28 @@ impl TrayItemWindows {
             let mut data = self.notify_default();
             data.uFlags = NIF_INFO;
             data.dwInfoFlags = flags.unwrap_or(default_flags).bits();
-            // data.hBalloonIcon = icon.map(|i| i.handle as HICON).unwrap_or(ptr::null_mut());
+            data.hBalloonIcon = icon;
 
             let info_v = to_wstring(text);
-            let length = if info_v.len() >= 256 { 255 } else { info_v.len() };
+            let length = if info_v.len() >= 256 {
+                255
+            } else {
+                info_v.len()
+            };
             for i in 0..length {
                 data.szInfo[i] = info_v[i];
             }
 
             let info_title_v = match title {
                 Some(t) => to_wstring(t),
-                None => vec![]
+                None => vec![],
             };
 
-            let length = if info_title_v.len() >= 256 { 255 } else { info_title_v.len() };
+            let length = if info_title_v.len() >= 256 {
+                255
+            } else {
+                info_title_v.len()
+            };
             for i in 0..length {
                 data.szInfoTitle[i] = info_title_v[i];
             }
