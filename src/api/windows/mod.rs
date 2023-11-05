@@ -3,15 +3,10 @@
 mod funcs;
 mod structs;
 
-use std::{
-    cell::RefCell,
-    mem,
-    sync::{
-        mpsc::{channel, Sender},
-        Arc, Mutex,
-    },
-    thread,
-};
+use std::{cell::RefCell, mem, ptr, sync::{
+    mpsc::{channel, Sender},
+    Arc, Mutex,
+}, thread};
 
 use windows_sys::Win32::{
     Foundation::{LPARAM, WPARAM},
@@ -24,6 +19,7 @@ use windows_sys::Win32::{
         },
     },
 };
+use windows_sys::Win32::UI::Shell::NIF_INFO;
 
 use crate::{IconSource, TIError};
 
@@ -262,6 +258,63 @@ impl TrayItemWindows {
             }
         }
         Ok(())
+    }
+
+    pub fn show_toast(&self, text: &str, title: Option<&str>, flags: Option<TrayNotificationFlags>) -> Result<(), TIError> {
+        // if self.handle.blank() { panic!("{}", NOT_BOUND); }
+        // self.handle.tray().expect(BAD_HANDLE);
+
+        let default_flags = TrayNotificationFlags::NO_ICON | TrayNotificationFlags::SILENT;
+
+        unsafe {
+            let mut data = self.notify_default();
+            data.uFlags = NIF_INFO;
+            data.dwInfoFlags = flags.unwrap_or(default_flags).bits();
+            // data.hBalloonIcon = icon.map(|i| i.handle as HICON).unwrap_or(ptr::null_mut());
+
+            let info_v = to_wstring(text);
+            let length = if info_v.len() >= 256 { 255 } else { info_v.len() };
+            for i in 0..length {
+                data.szInfo[i] = info_v[i];
+            }
+
+            let info_title_v = match title {
+                Some(t) => to_wstring(t),
+                None => vec![]
+            };
+
+            let length = if info_title_v.len() >= 256 { 255 } else { info_title_v.len() };
+            for i in 0..length {
+                data.szInfoTitle[i] = info_title_v[i];
+            }
+
+            Shell_NotifyIconW(NIM_MODIFY, &mut data);
+        }
+
+        Ok(())
+    }
+
+    fn notify_default(&self) -> NOTIFYICONDATAW {
+        unsafe {
+            let parent = self.info.hwnd;
+            NOTIFYICONDATAW {
+                cbSize: mem::size_of::<NOTIFYICONDATAW>() as u32,
+                hWnd: parent,
+                uID: 0,
+                uFlags: 0,
+                uCallbackMessage: 0,
+                hIcon: 0,
+                szTip: mem::zeroed(),
+                dwState: 0,
+                dwStateMask: 0,
+                szInfo: mem::zeroed(),
+                szInfoTitle: mem::zeroed(),
+                dwInfoFlags: 0,
+                guidItem: mem::zeroed(),
+                hBalloonIcon: 0,
+                Anonymous: mem::zeroed(),
+            }
+        }
     }
 
     fn set_icon_from_resource(&self, resource_name: &str) -> Result<(), TIError> {
