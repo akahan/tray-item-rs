@@ -13,15 +13,16 @@ use std::{
     thread,
 };
 
-use windows_sys::Win32::UI::Shell::NIF_INFO;
 use windows_sys::Win32::{
     Foundation::{LPARAM, WPARAM},
     UI::{
-        Shell::{Shell_NotifyIconW, NIF_ICON, NIF_TIP, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW},
+        Shell::{
+            Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_TIP, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
+        },
         WindowsAndMessaging::{
             InsertMenuItemW, LoadImageW, PostMessageW, SetMenuItemInfoW, HICON, IMAGE_ICON,
-            LR_DEFAULTCOLOR, MENUITEMINFOW, MFS_DISABLED, MFS_UNHILITE, MFT_SEPARATOR, MFT_STRING,
-            MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING, WM_DESTROY,
+            LOADIMAGE_HANDLE, LR_DEFAULTCOLOR, MENUITEMINFOW, MFS_DISABLED, MFS_UNHILITE,
+            MFT_SEPARATOR, MFT_STRING, MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING, WM_DESTROY,
         },
     },
 };
@@ -267,7 +268,7 @@ impl TrayItemWindows {
     pub fn show_toast(
         &self,
         text: &str,
-        icon: HICON,
+        icon: IconSource,
         title: Option<&str>,
         flags: Option<TrayNotificationFlags>,
     ) -> Result<(), TIError> {
@@ -280,6 +281,7 @@ impl TrayItemWindows {
             let mut data = self.notify_default();
             data.uFlags = NIF_INFO;
             data.dwInfoFlags = flags.unwrap_or(default_flags).bits();
+            let icon = self._icon_from_resource(icon.as_str())?;
             data.hBalloonIcon = icon;
 
             let info_v = to_wstring(text);
@@ -336,7 +338,12 @@ impl TrayItemWindows {
     }
 
     fn set_icon_from_resource(&self, resource_name: &str) -> Result<(), TIError> {
-        let icon = unsafe {
+        let icon = self._icon_from_resource(resource_name)?;
+        self._set_icon(icon)
+    }
+
+    fn _icon_from_resource(&self, resource_name: &str) -> Result<LOADIMAGE_HANDLE, TIError> {
+        unsafe {
             let handle = LoadImageW(
                 self.info.hmodule,
                 to_wstring(resource_name).as_ptr(),
@@ -350,10 +357,8 @@ impl TrayItemWindows {
                 return Err(get_win_os_error("Error setting icon from resource"));
             }
 
-            handle
-        };
-
-        self._set_icon(icon)
+            Ok(handle)
+        }
     }
 
     fn _set_icon(&self, icon: HICON) -> Result<(), TIError> {

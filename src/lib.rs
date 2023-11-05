@@ -4,7 +4,6 @@ mod error;
 use bitflags::bitflags;
 pub use error::TIError;
 use windows_sys::Win32::UI::Shell::*;
-use windows_sys::Win32::UI::WindowsAndMessaging::HICON;
 
 pub struct TrayItem(api::TrayItemImpl);
 
@@ -56,7 +55,7 @@ impl TrayItem {
     pub fn show_toast(
         &mut self,
         text: &str,
-        icon: HICON,
+        icon: IconSource,
         title: Option<&str>,
         flags: Option<TrayNotificationFlags>,
     ) -> Result<(), TIError> {
