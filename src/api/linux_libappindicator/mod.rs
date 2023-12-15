@@ -1,5 +1,5 @@
 use {
-    crate::{TIError, IconSource},
+    crate::{IconSource, TIError},
     gtk::prelude::*,
     libappindicator::{AppIndicator, AppIndicatorStatus},
 };
@@ -29,7 +29,7 @@ impl TrayItemLinux {
     }
 
     pub fn add_label(&mut self, label: &str) -> Result<(), TIError> {
-        let item = gtk::MenuItem::with_label(label.as_ref());
+        let item = gtk::MenuItem::with_label(label);
         item.set_sensitive(false);
         self.menu.append(&item);
         self.menu.show_all();
@@ -40,12 +40,21 @@ impl TrayItemLinux {
 
     pub fn add_menu_item<F>(&mut self, label: &str, cb: F) -> Result<(), TIError>
     where
-        F: Fn() -> () + Send + 'static,
+        F: Fn() + Send + 'static,
     {
-        let item = gtk::MenuItem::with_label(label.as_ref());
+        let item = gtk::MenuItem::with_label(label);
         item.connect_activate(move |_| {
             cb();
         });
+        self.menu.append(&item);
+        self.menu.show_all();
+        self.tray.set_menu(&mut self.menu);
+
+        Ok(())
+    }
+
+    pub fn add_separator(&mut self) -> Result<(), TIError> {
+        let item = gtk::SeparatorMenuItem::new();
         self.menu.append(&item);
         self.menu.show_all();
         self.tray.set_menu(&mut self.menu);

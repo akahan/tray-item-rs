@@ -1,20 +1,24 @@
-use crate::{TIError, IconSource};
+use crate::{IconSource, TIError};
 use ksni::{menu::StandardItem, Handle, Icon};
 use std::sync::Arc;
 
-struct TrayItem {
-    label: String,
-    action: Option<Arc<dyn Fn() + Send + Sync + 'static>>
+enum TrayItem {
+    Label(String),
+    MenuItem {
+        label: String,
+        action: Arc<dyn Fn() + Send + Sync + 'static>,
+    },
+    Separator,
 }
 
 struct Tray {
     title: String,
     icon: IconSource,
-    actions: Vec<TrayItem>
+    actions: Vec<TrayItem>,
 }
 
 pub struct TrayItemLinux {
-    tray: Handle<Tray>
+    tray: Handle<Tray>,
 }
 
 impl ksni::Tray for Tray {
@@ -29,44 +33,51 @@ impl ksni::Tray for Tray {
     fn icon_name(&self) -> String {
         match &self.icon {
             IconSource::Resource(name) => name.to_string(),
-            IconSource::Data{..} => String::new(),
+            IconSource::Data { .. } => String::new(),
         }
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
         match &self.icon {
             IconSource::Resource(_) => vec![],
-            IconSource::Data{data, height, width} => {
+            IconSource::Data {
+                data,
+                height,
+                width,
+            } => {
                 vec![Icon {
                     width: *height,
                     height: *width,
-                    data: data.clone()
+                    data: data.clone(),
                 }]
-            },
+            }
         }
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        self.actions.iter().map(|item| {
-            let action = item.action.clone();
-            if let Some(action) = action {
-                StandardItem {
-                    label: item.label.clone(),
-                    activate: Box::new(move |_| {
-                        action();
-                    }),
-                    ..Default::default()
-                }
-                .into()
-            } else {
-                StandardItem {
-                    label: item.label.clone(),
+        self.actions
+            .iter()
+            .map(|item| match item {
+                TrayItem::Label(label) => StandardItem {
+                    label: label.clone(),
                     enabled: false,
                     ..Default::default()
                 }
-                .into()
-            }
-        }).collect()
+                .into(),
+                TrayItem::MenuItem { label, action } => {
+                    let action = action.clone();
+                    StandardItem {
+                        label: label.clone(),
+                        activate: Box::new(move |_| {
+                            action();
+                        }),
+                        ..Default::default()
+                    }
+                    .into()
+                }
+                TrayItem::Separator => ksni::MenuItem::Separator,
+            })
+            .collect()
     }
 }
 
@@ -75,31 +86,24 @@ impl TrayItemLinux {
         let svc = ksni::TrayService::new(Tray {
             title: title.to_string(),
             icon,
-            actions: vec![]
+            actions: vec![],
         });
 
         let handle = svc.handle();
         svc.spawn();
 
-        Ok(Self {
-            tray: handle
-        })
+        Ok(Self { tray: handle })
     }
 
     pub fn set_icon(&mut self, icon: IconSource) -> Result<(), TIError> {
-        self.tray.update(|tray| {
-            tray.icon = icon.clone()
-        });
+        self.tray.update(|tray| tray.icon = icon.clone());
 
         Ok(())
     }
 
     pub fn add_label(&mut self, label: &str) -> Result<(), TIError> {
         self.tray.update(move |tray| {
-            tray.actions.push(TrayItem {
-                label: label.to_string(),
-                action: None
-            });
+            tray.actions.push(TrayItem::Label(label.to_string()));
         });
 
         Ok(())
@@ -109,16 +113,24 @@ impl TrayItemLinux {
     where
         F: Fn() -> () + Send + Sync + 'static,
     {
-        let action = Arc::new(move ||{
+        let action = Arc::new(move || {
             cb();
         });
 
         self.tray.update(move |tray| {
-            tray.actions.push(TrayItem {
+            tray.actions.push(TrayItem::MenuItem {
                 label: label.to_string(),
-                action: Some(action.clone())
+                action: action.clone(),
             });
         });
+        Ok(())
+    }
+
+    pub fn add_separator(&mut self) -> Result<(), TIError> {
+        self.tray.update(move |tray| {
+            tray.actions.push(TrayItem::Separator);
+        });
+
         Ok(())
     }
 }
