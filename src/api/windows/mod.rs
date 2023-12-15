@@ -245,7 +245,7 @@ impl TrayItemWindows {
     }
 
     pub fn set_tooltip(&self, tooltip: &str) -> Result<(), TIError> {
-        let wide_tooltip = to_wstring(tooltip);
+        let mut wide_tooltip = to_wstring(tooltip);
         if wide_tooltip.len() > 128 {
             return Err(TIError::new("The tooltip may not exceed 127 wide bytes"));
         }
@@ -255,7 +255,11 @@ impl TrayItemWindows {
         nid.hWnd = self.info.hwnd;
         nid.uID = 1;
         nid.uFlags = NIF_TIP;
-        nid.szTip[..wide_tooltip.len()].copy_from_slice(&wide_tooltip);
+
+        wide_tooltip.extend(vec![0; 128 - wide_tooltip.len()]);
+        let mut tooltip_array = [0u16; 128];
+        tooltip_array.copy_from_slice(&wide_tooltip[..]);
+        nid.szTip = tooltip_array;
 
         unsafe {
             if Shell_NotifyIconW(NIM_MODIFY, &nid) == 0 {
